@@ -1,6 +1,7 @@
 package com.bignerdranch.android.criminalintent
 
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -22,6 +23,9 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProviders
 import kotlinx.android.synthetic.main.fragment_crime.view.*
 import android.text.format.DateFormat
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import java.net.URI
 import java.util.*
 
 private const val TAG = "CrimeFragment"
@@ -30,6 +34,7 @@ private const val DIALOG_DATE = "DialogDate"
 private const val ARG_CRIME_ID = "crime_id"
 private const val REQUEST_DATE = 0
 private const val REQUEST_CONTACT = 1
+private const val REQUEST_READ_CONTACTS_PERMISSION = 2
 
 class CrimeFragment : Fragment(), DatePickerFragment.Callbacks  {
 
@@ -39,6 +44,7 @@ class CrimeFragment : Fragment(), DatePickerFragment.Callbacks  {
     private lateinit var solvedCheckBox: CheckBox
     private lateinit var reportButton: Button
     private lateinit var suspectButton: Button
+    private lateinit var callSuspectButton: Button
 
     private val crimeDetailViewModel: CrimeDetailViewModel by lazy {
         ViewModelProviders.of(this).get(CrimeDetailViewModel::class.java)
@@ -63,6 +69,7 @@ class CrimeFragment : Fragment(), DatePickerFragment.Callbacks  {
         solvedCheckBox = view.findViewById(R.id.crime_solved) as CheckBox
         reportButton = view.findViewById(R.id.crime_report) as Button
         suspectButton = view.findViewById(R.id.crime_suspect) as Button
+        callSuspectButton = view.findViewById(R.id.call_suspect) as Button
 
         return view
     }
@@ -152,6 +159,16 @@ class CrimeFragment : Fragment(), DatePickerFragment.Callbacks  {
                 isEnabled = false
             }
         }
+        callSuspectButton.apply{
+            setOnClickListener{
+                if(ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_CONTACTS)
+                    == PackageManager.PERMISSION_GRANTED){
+                    dialNumber(lookupPhoneNumber())
+            } else {
+                    requiresReadContactsPermission()
+                }
+            }
+        }
     }
 
     override fun onDateSelected(date: Date) {
@@ -174,7 +191,61 @@ class CrimeFragment : Fragment(), DatePickerFragment.Callbacks  {
         if (crime.suspect.isNotEmpty()) {
             suspectButton.text = crime.suspect
         }
+        callSuspectButton.isEnabled = crime.suspectId.isNotEmpty()
     }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResult: IntArray
+    ){
+        if(requestCode == REQUEST_READ_CONTACTS_PERMISSION){
+            if(grantResult.size == 1 && grantResult[0] == PackageManager.PERMISSION_GRANTED){
+                dialNumber(lookupPhoneNumber())
+            }
+        }
+    }
+
+    fun lookupPhoneNumber(): String?{
+        if(crime.suspectId.isEmpty()) return null;
+
+        val queryFields = arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER)
+        val uri: Uri = ContactsContract.CommonDataKinds.Phone.CONTENT_URI
+        val cursor = requireActivity().contentResolver.query(
+            uri,
+            queryFields,
+            "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
+            arrayOf(crime.suspectId),
+            null,
+            null)
+        cursor?.use{
+            if(it.count == 0) {
+                Toast.makeText(
+                    requireContext(),
+                    "No phone number found for ${crime.suspect}",
+                    Toast.LENGTH_LONG
+                ).show()
+                return null
+            }
+            it.moveToFirst()
+            val phoneNumber = it.getString(0)
+            Log.d(TAG, "Found phone number ${phoneNumber}")
+            return phoneNumber
+        }
+        return null
+    }
+
+    fun dialNumber(numberToDial: String?){
+        numberToDial?.let{
+            val number: Uri = Uri.parse("tel:${numberToDial}")
+            Intent(Intent.ACTION_DIAL).apply{
+                data = number
+            }.also{
+                startActivity(it)
+            }
+        }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         when {
             resultCode != Activity.RESULT_OK -> return
@@ -182,7 +253,8 @@ class CrimeFragment : Fragment(), DatePickerFragment.Callbacks  {
             requestCode == REQUEST_CONTACT && data != null -> {
                 val contactUri: Uri? = data.data
                 // Specify which fields you want your query to return values for
-                val queryFields = arrayOf(ContactsContract.Contacts.DISPLAY_NAME)
+                val queryFields = arrayOf(ContactsContract.Contacts._ID,
+                    ContactsContract.Contacts.DISPLAY_NAME)
                 // Perform your query - the contactUri is like a "where" clause here
                 val cursor = contactUri?.let {
                     requireActivity().contentResolver
@@ -197,13 +269,30 @@ class CrimeFragment : Fragment(), DatePickerFragment.Callbacks  {
                     // Pull out the first column of the first row of data -
                     // that is your suspect's name
                     it.moveToFirst()
-                    val suspect = it.getString(0)
+                    val suspectId = it.getString(0)
+                    val suspect = it.getString(1)
+                    crime.suspectId = suspectId
                     crime.suspect = suspect
                     crimeDetailViewModel.saveCrime(crime)
                     suspectButton.text = suspect
                 }
             }
         }
+    }
+
+    fun requiresReadContactsPermission(){
+        if(shouldShowRequestPermissionRationale(Manifest.permission.READ_CONTACTS)){
+            Toast.makeText(
+                context,
+                "CriminalIntent needs permission to look up a phone number",
+                Toast.LENGTH_LONG)
+                .show()
+        }
+
+        requestPermissions(
+            arrayOf(Manifest.permission.READ_CONTACTS),
+            REQUEST_READ_CONTACTS_PERMISSION)
+
     }
     private fun getCrimeReport(): String {
         val solvedString = if (crime.isSolved) {
