@@ -11,6 +11,15 @@
     <string name="crime_report">%1$s!
         El crimen fue descubierto el %2$s. %3$s, y %4$s
     </string>
+    <string name="crime_photo_button_description">
+        Tomar foto de la escena del crimen
+    </string>
+    <string name="crime_photo_no_image_description">
+        Foto de la escena del crimen (no establecida)
+    </string>
+    <string name="crime_photo_image_description">
+        Foto de la escena del crimen (establecida)
+    </string>
     <string name="crime_report_solved">El caso está resuelto</string>
     <string name="crime_report_unsolved">El caso no está resuelto</string>
     <string name="crime_report_no_suspect">no hay sospechoso.</string>
