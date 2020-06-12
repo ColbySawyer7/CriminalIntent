@@ -20,7 +20,6 @@ import android.widget.CheckBox
 import android.widget.EditText
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProviders
-import kotlinx.android.synthetic.main.fragment_crime.view.*
 import android.text.format.DateFormat
 import java.util.*
 
@@ -128,13 +127,11 @@ class CrimeFragment : Fragment(), DatePickerFragment.Callbacks  {
                 putExtra(Intent.EXTRA_TEXT, getCrimeReport())
                 putExtra(
                     Intent.EXTRA_SUBJECT,
-                    getString(R.string.crime_report_subject)
-                )
+                    getString(R.string.crime_report_subject))
             }.also { intent ->
                 val chooserIntent =
                     Intent.createChooser(intent, getString(R.string.send_report))
-                startActivity(chooserIntent)
-            }
+                startActivity(chooserIntent)            }
         }
 
         suspectButton.apply {
@@ -205,6 +202,7 @@ class CrimeFragment : Fragment(), DatePickerFragment.Callbacks  {
             }
         }
     }
+
     private fun getCrimeReport(): String {
         val solvedString = if (crime.isSolved) {
             getString(R.string.crime_report_solved)
